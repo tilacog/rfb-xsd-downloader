@@ -40,9 +40,9 @@ class DownloadSchemaPacks(luigi.Task):
         # get list of urls to download
         with self.input().open() as f:
             available_schema_packs = f.readlines()
-            # download them all
-            # TODO: be idempotent (only download missing files)
-        downloaded = download_many(available_schema_packs)
+        # download them all
+        # TODO: be idempotent (only download missing files)
+        download_many(available_schema_packs)
 
 
 class FilterSchemaPacks(luigi.Task):
