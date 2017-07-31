@@ -101,3 +101,5 @@ ENV/
 # custom
 zips/
 downloaded/
+selected/
+*.txt
