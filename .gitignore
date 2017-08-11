@@ -103,3 +103,4 @@ zips/
 downloaded/
 selected/
 *.txt
+luigi.cfg

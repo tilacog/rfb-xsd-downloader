@@ -1,6 +1,15 @@
+# rename this file as `luigi.cfg` and configure it
 [FetchAvailableSchemaPacks]
 BASE_URL=http://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=/fwLvLUSmU8=
 BASE_DOWNLOAD_URL=http://www.nfe.fazenda.gov.br/portal/
 
 [DownloadSchemaPacks]
 DEST_DIR=downloaded
+
+[UpsertDatabase]
+DB_HOST=
+DB_USER=
+DB_PSSWD=
+DB_PORT=
+DB_NAME=
+DB_TABLE=
