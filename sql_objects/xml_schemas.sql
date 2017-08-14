@@ -2,7 +2,7 @@ create table public.xml_schemas (
     id serial primary key,
     document_type text not null,
     version text not null,
-    zipped_data bitea not null,
+    zipped_data bytea not null,
     leading_schema text not null,
     metadata jsonb not null,
     created_at timestamp default now(),
