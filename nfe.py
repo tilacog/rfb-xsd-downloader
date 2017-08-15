@@ -1,15 +1,14 @@
-import pathlib
+import datetime
 import zipfile
-from datetime import datetime
-from functools import reduce
 
 import luigi
 import psycopg2
+import yaml
 from psycopg2.extensions import quote_ident
 from psycopg2.extras import Json
 from pyquery import PyQuery as pq
 
-from common import download_many
+from common import download
 
 
 class FetchAvailableSchemaPacks(luigi.Task):
@@ -17,7 +16,7 @@ class FetchAvailableSchemaPacks(luigi.Task):
     BASE_DOWNLOAD_URL = luigi.Parameter()  # base url of xsd files
 
     def output(self):
-        return luigi.LocalTarget('urls.txt')
+        return luigi.LocalTarget('urls-nfe.txt')
 
     def run(self):
         with self.output().open('w') as f:
@@ -38,15 +37,25 @@ class DownloadSchemaPacks(luigi.Task):
         return FetchAvailableSchemaPacks()
 
     def output(self):
-        return luigi.LocalTarget('downloaded')
+        return luigi.LocalTarget('downloaded-nfe.yaml')
 
     def run(self):
-        # get list of urls to download
+
+        downloaded_files = []
+
         with self.input().open() as f:
-            available_schema_packs = f.readlines()
-        # download them all
-        # TODO: be idempotent (only download missing files)
-        download_many(available_schema_packs)
+            available_schema_packs = [i.strip() for i in f.readlines()]
+        for sp in available_schema_packs:
+            downloaded_file = download(sp, dest_dir='downloaded/nfe')
+            downloaded_files.append({
+                'url': sp,
+                'local-path': downloaded_file,
+                'download-timestamp-utc': (datetime.datetime.utcnow()
+                                           .isoformat()),
+            })
+
+        with self.output().open('w') as fo:
+            fo.write(yaml.dump(downloaded_files, default_flow_style=False))
 
 
 class FilterSchemaPacks(luigi.Task):
@@ -58,49 +67,34 @@ class FilterSchemaPacks(luigi.Task):
         return DownloadSchemaPacks()
 
     def output(self):
-        return luigi.LocalTarget('selected')
+        return luigi.LocalTarget('selected-nfe.yaml')
+
+    def iter_input(self):
+        with self.input().open() as f:
+            return yaml.load(f)
 
     def run(self):
+        selected = {}
+        downloaded_files = self.iter_input()
 
-        for schema_info in self.filter_schemas().values():
-            # make dir, if must
-            dest_dir = pathlib.Path(self.output().path).resolve()
-            dest_dir.mkdir(exist_ok=True)
-
-            # put a symlink to downoaded schema-pack file
-            target = pathlib.Path(schema_info['path']).resolve()
-            assert target.exists()
-
-            link = ((dest_dir / pathlib.Path(schema_info['schema-pack-name']))
-                    .resolve())
-
-            link.symlink_to(target)
-            link.touch()
-
-    def filter_schemas(self):
-        'returns schema-packs of interest'
-        directory = pathlib.Path(self.input().path)
-
-        # builds a list of zipped files that contain inner files of interest
-        schema_packs = filter(
-            self.filter_criteria,
-            map(zipfile.ZipFile,
-                map(lambda x: x.as_posix(), directory.glob('*.zip')))
-        )
-
-        # helper function
-        def _filter(selected, zipped_file):
-            metadata = get_zip_metadata(zipped_file)
+        for df in downloaded_files:
+            zipped = zipfile.ZipFile(df['local-path'])
+            if not self.filter_criteria(zipped):
+                continue
+            metadata = get_zip_metadata(zipped)
             key = metadata['schema-pack-name']
             if key not in selected:
-                selected[key] = metadata
-            else:  # keep only the latest
-                present = selected[key]
-                if metadata['last-modified'] > present['last-modified']:
-                    selected[key] = metadata
-            return selected
+                df.update(metadata)
+                selected[key] = df
+            else:
+                existing_ts = selected[key]['last-modified']
+                incoming_ts = metadata['last-modified']
+                if incoming_ts > existing_ts:
+                    df.update(metadata)
+                    selected[key] = df
 
-        return reduce(_filter, schema_packs, {})
+        with self.output().open('w') as fo:
+            fo.write(yaml.dump(list(selected.values())))
 
     @staticmethod
     def filter_criteria(zipped_file):
@@ -132,23 +126,23 @@ class UpsertDatabase(luigi.Task):
         return FilterSchemaPacks()
 
     def iter_input(self):
-        directory = pathlib.Path(self.input().path)
-        symlinks = [x for x in directory.iterdir() if x.is_symlink()]
-        assert symlinks
-        for symlink in symlinks:
-            yield symlink
+        with self.input().open() as f:
+            return yaml.load(f)
 
     def build_records(self):
-        for symlink in self.iter_input():
-            zipped_schema_path = symlink.resolve().as_posix()
-
+        for selected_file in self.iter_input():
             # record fields
             document_type = 'nfe'  # TODO: remove this hardcoded reference
-            zipped_data = open(zipped_schema_path, 'rb').read()
-            metadata = get_zip_metadata(zipfile.ZipFile(zipped_schema_path))
-            leading_schema = metadata.pop('leading_schema')
-            version = metadata.pop('schema-pack-name')
-
+            zipped_data = open(selected_file['local-path'], 'rb').read()
+            leading_schema = selected_file['leading-schema']
+            version = selected_file['schema-pack-name']
+            metadata = {
+                'url': selected_file['url'],
+                'last-modified': selected_file['last-modified'],
+                'contents': selected_file['contents'],
+                'download-timestamp-utc':
+                selected_file['download-timestamp-utc'],
+            }
             yield (document_type, version, zipped_data, leading_schema,
                    Json(metadata))
 
@@ -183,12 +177,11 @@ class UpsertDatabase(luigi.Task):
 def get_zip_metadata(zip_file):
     metadata = {
         'schema-pack-name': zip_file.namelist()[0].split('/')[0],  # HACK
-        'last-modified': datetime(*max(zip_file.infolist(),
-                                       key=lambda x: x.date_time)
-                                  .date_time).isoformat(),
-        'path': pathlib.Path(zip_file.filename).name,
-        'contents': [x.filename for x in zip_file.infolist()]
+        'contents': [x.filename for x in zip_file.infolist()],
+        'last-modified': datetime.datetime(*max(zip_file.infolist(),
+                                                key=lambda x: x.date_time)
+                                           .date_time).isoformat(),
     }
-    metadata['leading_schema'] = next(x for x in metadata['contents']
+    metadata['leading-schema'] = next(x for x in metadata['contents']
                                       if '/nfe' in x)
     return metadata
