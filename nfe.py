@@ -5,10 +5,11 @@ from functools import reduce
 
 import luigi
 import psycopg2
-import requests
 from psycopg2.extensions import quote_ident
 from psycopg2.extras import Json
 from pyquery import PyQuery as pq
+
+from common import download_many
 
 
 class FetchAvailableSchemaPacks(luigi.Task):
@@ -177,24 +178,6 @@ class UpsertDatabase(luigi.Task):
             else:
                 cursor.execute("COMMIT")
         conn.close()
-
-
-def download(url, dest_dir='downloaded'):
-    pathlib.Path(dest_dir).mkdir(exist_ok=True)
-    r = requests.get(url, stream=True)
-    local_filename = (pathlib.Path(dest_dir) /
-                      (url.strip().split('/')[-1] + '.zip')).as_posix()
-    with open(local_filename, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-    return local_filename
-
-
-def download_many(url_list):
-    # TODO: make async
-    downloaded = list(map(download, url_list))
-    return downloaded
 
 
 def get_zip_metadata(zip_file):
