@@ -4,11 +4,12 @@ import re
 import zipfile
 
 import luigi
+from luigi.util import inherits
 import requests
 import yaml
 from pyquery import PyQuery as pq
 
-from common import download, url_is_valid
+from common import download, url_is_valid, UpsertDatabase
 
 
 class EsocialFetchAvailableSchemaPacks(luigi.Task):
@@ -78,6 +79,7 @@ class EsocialFilterSchemaPacks(luigi.Task):
 
             metadata = {
                 **sp,
+                'local-path': target_path.as_posix(),
                 'schema-pack-name': pack_name(target_path.name),
                 'contents': [i.filename for i in new_zip.infolist()],
                 'last-modified': datetime.datetime(*max(
@@ -90,6 +92,13 @@ class EsocialFilterSchemaPacks(luigi.Task):
 
         with self.output().open('w') as fo:
             fo.write(yaml.dump(filtered_files, default_flow_style=False))
+
+
+class EsocialUpsertDatabase(UpsertDatabase):
+    document_type = 'esocial'
+
+    def requires(self):
+        return self.clone(EsocialFilterSchemaPacks)
 
 
 def rezip_xsd_files(source_path, target_path):
