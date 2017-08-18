@@ -2,13 +2,10 @@ import datetime
 import zipfile
 
 import luigi
-import psycopg2
 import yaml
-from psycopg2.extensions import quote_ident
-from psycopg2.extras import Json
 from pyquery import PyQuery as pq
 
-from common import download
+from common import UpsertDatabase, download
 
 
 class FetchAvailableSchemaPacks(luigi.Task):
@@ -113,65 +110,11 @@ class FilterSchemaPacks(luigi.Task):
         return False
 
 
-class UpsertDatabase(luigi.Task):
-    'upserts schema packs into database'
-    DB_HOST = luigi.Parameter()
-    DB_USER = luigi.Parameter()
-    DB_PSSWD = luigi.Parameter()
-    DB_PORT = luigi.Parameter()
-    DB_NAME = luigi.Parameter()
-    DB_TABLE = luigi.Parameter()
+class NfeUpsertDatabase(UpsertDatabase):
+    document_type = 'nfe'
 
     def requires(self):
         return FilterSchemaPacks()
-
-    def iter_input(self):
-        with self.input().open() as f:
-            return yaml.load(f)
-
-    def build_records(self):
-        for selected_file in self.iter_input():
-            # record fields
-            document_type = 'nfe'  # TODO: remove this hardcoded reference
-            zipped_data = open(selected_file['local-path'], 'rb').read()
-            version = selected_file['schema-pack-name']
-            metadata = {
-                'url': selected_file['url'],
-                'last-modified': selected_file['last-modified'],
-                'contents': selected_file['contents'],
-                'download-timestamp-utc':
-                selected_file['download-timestamp-utc'],
-                'leading_schema': selected_file['leading-schema']
-
-            }
-            yield (document_type, version, zipped_data, Json(metadata))
-
-    def connection(self):
-        conn = psycopg2.connect(host=self.DB_HOST, port=self.DB_PORT,
-                                dbname=self.DB_NAME, user=self.DB_USER,
-                                password=self.DB_PSSWD)
-        conn.set_session(autocommit=False)
-        return conn
-
-    def run(self):
-        records = list(self.build_records())
-        conn = self.connection()
-        cursor = conn.cursor()
-        table_name = quote_ident(self.DB_TABLE, scope=conn)
-
-        for record in records:
-            try:
-                cursor.execute("BEGIN")
-                cursor.execute(f"""
-                INSERT INTO {table_name}
-                (document_type, version, zipped_data, metadata)
-                VALUES (%s, %s, %s, %s);
-                """, record)
-            except (psycopg2.IntegrityError):
-                cursor.execute("ROLLBACK")
-            else:
-                cursor.execute("COMMIT")
-        conn.close()
 
 
 def get_zip_metadata(zip_file):

@@ -1,5 +1,11 @@
 import luigi
+from nfe import NfeUpsertDatabase
+from esocial import EsocialUpsertDatabase
+from efdreinf import EfdreinfUpsertDatabase
 
 
-# TODO: import individual tasks for each XML-Doctype
-# TODO: WrapperTask for all XML Documents
+class Sync(luigi.WrapperTask):
+    def requires(self):
+        yield NfeUpsertDatabase()
+        yield EsocialUpsertDatabase()
+        yield EfdreinfUpsertDatabase()

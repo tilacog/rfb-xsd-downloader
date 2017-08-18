@@ -106,3 +106,4 @@ selected/
 luigi.cfg
 *.yaml
 *.yml
+*.timestamp

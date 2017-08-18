@@ -101,3 +101,8 @@ class UpsertDatabase(luigi.Task):
             else:
                 cursor.execute("COMMIT")
         conn.close()
+
+        pathlib.Path(self.output().path).touch()  # indicates task completion
+
+    def output(self):
+        return luigi.LocalTarget(f'upserted-{self.document_type}.timestamp')
