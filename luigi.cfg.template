@@ -5,6 +5,9 @@ BASE_DOWNLOAD_URL=http://www.nfe.fazenda.gov.br/portal/
 [DownloadSchemaPacks]
 DEST_DIR=downloaded
 
+[EsocialFetchAvailableSchemaPacks]
+BASE_URL=https://portal.esocial.gov.br/institucional/documentacao-tecnicaa
+
 [NfeUpsertDatabase]
 DB_HOST=
 DB_USER=
@@ -12,9 +15,6 @@ DB_PSSWD=
 DB_PORT=
 DB_NAME=
 DB_TABLE=
-
-[EsocialFetchAvailableSchemaPacks]
-BASE_URL=https://portal.esocial.gov.br/institucional/documentacao-tecnica
 
 [EsocialUpsertDatabase]
 DB_HOST=
@@ -25,6 +25,15 @@ DB_NAME=
 DB_TABLE=
 
 [EfdreinfUpsertDatabase]
+DB_HOST=
+DB_USER=
+DB_PSSWD=
+DB_PORT=
+DB_NAME=
+DB_TABLE=
+
+[PrepareWorkspace]
+target_directory=
 DB_HOST=
 DB_USER=
 DB_PSSWD=
