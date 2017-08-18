@@ -104,3 +104,5 @@ downloaded/
 selected/
 *.txt
 luigi.cfg
+*.yaml
+*.yml

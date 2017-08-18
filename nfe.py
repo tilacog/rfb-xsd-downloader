@@ -134,7 +134,6 @@ class UpsertDatabase(luigi.Task):
             # record fields
             document_type = 'nfe'  # TODO: remove this hardcoded reference
             zipped_data = open(selected_file['local-path'], 'rb').read()
-            leading_schema = selected_file['leading-schema']
             version = selected_file['schema-pack-name']
             metadata = {
                 'url': selected_file['url'],
@@ -142,9 +141,10 @@ class UpsertDatabase(luigi.Task):
                 'contents': selected_file['contents'],
                 'download-timestamp-utc':
                 selected_file['download-timestamp-utc'],
+                'leading_schema': selected_file['leading-schema']
+
             }
-            yield (document_type, version, zipped_data, leading_schema,
-                   Json(metadata))
+            yield (document_type, version, zipped_data, Json(metadata))
 
     def connection(self):
         conn = psycopg2.connect(host=self.DB_HOST, port=self.DB_PORT,
@@ -164,8 +164,8 @@ class UpsertDatabase(luigi.Task):
                 cursor.execute("BEGIN")
                 cursor.execute(f"""
                 INSERT INTO {table_name}
-                (document_type, version, zipped_data, leading_schema,
-                metadata) VALUES (%s, %s, %s, %s, %s);
+                (document_type, version, zipped_data, metadata)
+                VALUES (%s, %s, %s, %s);
                 """, record)
             except (psycopg2.IntegrityError):
                 cursor.execute("ROLLBACK")

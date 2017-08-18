@@ -1,3 +1,4 @@
+import datetime
 import pathlib
 from urllib.parse import urlparse
 
@@ -36,6 +37,16 @@ def url_is_valid(url):
         return True
 
 
+def zip_file_list(zipped_file):
+    return [i.filename for i in zipped_file.infolist()]
+
+
+def zip_file_last_modified(zipped_file):
+    return datetime.datetime(
+        *max(zipped_file.infolist(), key=lambda x: x.date_time).date_time
+    ).isoformat()
+
+
 class UpsertDatabase(luigi.Task):
     'upserts schema packs into database'
     DB_HOST = luigi.Parameter()
@@ -54,7 +65,6 @@ class UpsertDatabase(luigi.Task):
             # record fields
             document_type = self.document_type
             zipped_data = open(selected_file.pop('local-path'), 'rb').read()
-            leading_schema = selected_file['leading-schema']
             version = selected_file['schema-pack-name']
             metadata = {
                 'url': selected_file['url'],
@@ -63,8 +73,7 @@ class UpsertDatabase(luigi.Task):
                 'download-timestamp-utc':
                 selected_file['download-timestamp-utc'],
             }
-            yield (document_type, version, zipped_data, leading_schema,
-                   Json(metadata))
+            yield (document_type, version, zipped_data, Json(metadata))
 
     def connection(self):
         conn = psycopg2.connect(host=self.DB_HOST, port=self.DB_PORT,
@@ -84,8 +93,8 @@ class UpsertDatabase(luigi.Task):
                 cursor.execute("BEGIN")
                 cursor.execute(f"""
                 INSERT INTO {table_name}
-                (document_type, version, zipped_data, leading_schema,
-                metadata) VALUES (%s, %s, %s, %s, %s);
+                (document_type, version, zipped_data, metadata)
+                VALUES (%s, %s, %s, %s);
                 """, record)
             except (psycopg2.IntegrityError):
                 cursor.execute("ROLLBACK")
