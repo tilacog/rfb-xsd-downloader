@@ -1,25 +1,25 @@
 import datetime
+import os
 import pathlib
 import re
 import zipfile
 
 import luigi
-from luigi.util import inherits
 import requests
 import yaml
 from pyquery import PyQuery as pq
 
-from common import download, url_is_valid, UpsertDatabase
+from common import UpsertDatabase, download, url_is_valid
 
 
 class EsocialFetchAvailableSchemaPacks(luigi.Task):
-    BASE_URL = luigi.Parameter()
+    ESOCIAL_BASE_URL = os.environ['ESOCIAL_BASE_URL']
 
     def output(self):
         return luigi.LocalTarget('urls-esocial.txt')
 
     def links(self):
-        response = requests.get(self.BASE_URL, verify=False)
+        response = requests.get(self.ESOCIAL_BASE_URL, verify=False)
         d = pq(response.text)
         anchors = d("a:contains(XSD)")
         links = [l.attrib['href'] for l in anchors

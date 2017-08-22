@@ -1,4 +1,5 @@
 import datetime
+import os
 import zipfile
 
 import luigi
@@ -7,24 +8,27 @@ from pyquery import PyQuery as pq
 
 from common import UpsertDatabase, download
 
+# grab config from environment variables
+ENVS = ('NFE_BASE_URL', 'NFE_BASE_DOWNLOAD_URL')
+CONFIG = {var: os.environ[var] for var in ENVS}
+
 
 class FetchAvailableSchemaPacks(luigi.Task):
-    BASE_URL = luigi.Parameter()  # url of xsd listings page
-    BASE_DOWNLOAD_URL = luigi.Parameter()  # base url of xsd files
-
     def output(self):
         return luigi.LocalTarget('urls-nfe.txt')
 
     def run(self):
         with self.output().open('w') as f:
-            f.writelines(link + '\n' for link in self.links(self.BASE_URL))
+            f.writelines(link + '\n'
+                         for link in self.links(CONFIG['NFE_BASE_URL']))
 
     def links(self, url):
         d = pq(url=url)
         section = d('p:contains(OFICIAIS).tituloSessao + div')
         download_links = [link.attrib['href'].strip()
                           for link in section.children('p a')]
-        return [f'{self.BASE_DOWNLOAD_URL}/{link}' for link in download_links]
+        return [f'{CONFIG["NFE_BASE_DOWNLOAD_URL"]}/{link}'
+                for link in download_links]
 
 
 class DownloadSchemaPacks(luigi.Task):

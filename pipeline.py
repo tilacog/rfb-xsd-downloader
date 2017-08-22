@@ -1,3 +1,4 @@
+import os
 import io
 import pathlib
 import zipfile
@@ -19,13 +20,13 @@ class SyncDatabase(luigi.WrapperTask):
 
 
 class PrepareWorkspace(luigi.Task):
-    target_directory = luigi.Parameter()
-    DB_HOST = luigi.Parameter()
-    DB_USER = luigi.Parameter()
-    DB_PSSWD = luigi.Parameter()
-    DB_PORT = luigi.Parameter()
-    DB_NAME = luigi.Parameter()
-    DB_TABLE = luigi.Parameter()
+    target_directory = os.environ['XML_WORKSPACE_DIRECTORY']
+    DATABASE_HOST = os.environ["DATABASE_HOST"]
+    DATABASE_USER = os.environ["DATABASE_USER"]
+    DATABASE_PASSWD = os.environ["DATABASE_PASSWD"]
+    DATABASE_PORT = os.environ["DATABASE_PORT"]
+    DATABASE_DB = os.environ["DATABASE_DB"]
+    DATABASE_XSD_TABLE = os.environ["DATABASE_XSD_TABLE"]
 
     def run(self):
         target_dir = pathlib.Path(self.target_directory)
@@ -44,12 +45,14 @@ class PrepareWorkspace(luigi.Task):
         zipped_file.extractall(path=target_directory)
 
     def get_schema_packs(self):
-        conn = psycopg2.connect(host=self.DB_HOST, port=self.DB_PORT,
-                                dbname=self.DB_NAME, user=self.DB_USER,
-                                password=self.DB_PSSWD)
+        conn = psycopg2.connect(host=self.DATABASE_HOST,
+                                port=self.DATABASE_PORT,
+                                dbname=self.DATABASE_DB,
+                                user=self.DATABASE_USER,
+                                password=self.DATABASE_PASSWD)
         conn.set_session(readonly=True)
 
-        table_name = quote_ident(self.DB_TABLE, scope=conn)
+        table_name = quote_ident(self.DATABASE_XSD_TABLE, scope=conn)
         cursor = conn.cursor()
         cursor.execute(f"""select document_type, version, zipped_Data
                            from {table_name};""")
@@ -58,7 +61,6 @@ class PrepareWorkspace(luigi.Task):
             yield record
 
         conn.close()
-
 
     def wipe(self, path):
         for sub in path.iterdir():

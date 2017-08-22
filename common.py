@@ -1,4 +1,5 @@
 import datetime
+import os
 import pathlib
 from urllib.parse import urlparse
 
@@ -49,12 +50,12 @@ def zip_file_last_modified(zipped_file):
 
 class UpsertDatabase(luigi.Task):
     'upserts schema packs into database'
-    DB_HOST = luigi.Parameter()
-    DB_USER = luigi.Parameter()
-    DB_PSSWD = luigi.Parameter()
-    DB_PORT = luigi.Parameter()
-    DB_NAME = luigi.Parameter()
-    DB_TABLE = luigi.Parameter()
+    DATABASE_HOST = os.environ["DATABASE_HOST"]
+    DATABASE_USER = os.environ["DATABASE_USER"]
+    DATABASE_PASSWD = os.environ["DATABASE_PASSWD"]
+    DATABASE_PORT = os.environ["DATABASE_PORT"]
+    DATABASE_DB = os.environ["DATABASE_DB"]
+    DATABASE_XSD_TABLE = os.environ["DATABASE_XSD_TABLE"]
 
     def iter_input(self):
         with self.input().open() as f:
@@ -76,9 +77,11 @@ class UpsertDatabase(luigi.Task):
             yield (document_type, version, zipped_data, Json(metadata))
 
     def connection(self):
-        conn = psycopg2.connect(host=self.DB_HOST, port=self.DB_PORT,
-                                dbname=self.DB_NAME, user=self.DB_USER,
-                                password=self.DB_PSSWD)
+        conn = psycopg2.connect(host=self.DATABASE_HOST,
+                                port=self.DATABASE_PORT,
+                                dbname=self.DATABASE_DB,
+                                user=self.DATABASE_USER,
+                                password=self.DATABASE_PASSWD)
         conn.set_session(autocommit=False)
         return conn
 
@@ -86,7 +89,7 @@ class UpsertDatabase(luigi.Task):
         records = list(self.build_records())
         conn = self.connection()
         cursor = conn.cursor()
-        table_name = quote_ident(self.DB_TABLE, scope=conn)
+        table_name = quote_ident(self.DATABASE_XSD_TABLE, scope=conn)
 
         for record in records:
             try:
