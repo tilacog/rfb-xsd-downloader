@@ -10,7 +10,7 @@ Luigi pipeline to download and persist XSD files into a PostgreSQL database for 
 
 Each document type has tasks for downloading, filtering and persisting XSD files. Use them directly if you don't need all the downstream tasks.
 
-Don't forget to edit the `luigi.cfg.template` with your configs. For luigi to detect it automatically, just rename it as `luigi.cfg`.
+This pipeline uses environment variables instead of a luigi configuration file. Check the `.env.template` file for a list of required environment variables to be set.
 
 ### Downloading, filtering and upserting XSD content into a PostgreSQL database
 
@@ -25,6 +25,5 @@ $ luigi --module pipeline PrepareWorkspace
 ```
 
 ## TO-DO
-1. Configuration is duplicated for each document type.
 2. Each document type has its own series of classes (`luigi.Task`), but I think it would be nice if there was only one pipeline that could handle them as parameters.
 3. `EFD-Reinf` has only two versions/releases and their URL's are hardcoded in `efdreinf.py` file.
